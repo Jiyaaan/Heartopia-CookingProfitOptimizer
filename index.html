@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heartopia Kitchen Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/javascript-lp-solver@0.4.24/prod/solver.js"></script>
+    <style>
+        /* THEME VARIABLES (Light Mode Default - Heartopia Aesthetic) */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f0ddb4 0%, #e4f5d5 50%, #9ce0ec 100%);
+            --panel-color: rgba(255, 255, 255, 0.85); /* Slight glass effect */
+            --text-color: #5D4037;
+            --accent-green: #8EBA9A;
+            --accent-red: #F2BBA7;
+            --border-color: #E2D7C1;
+            --input-bg: rgba(252, 239, 227, 0.705);
+            --input-field-bg: rgba(255, 255, 255, 0.9);
+            --output-bg: #FFFFFF;
+        }
+
+        /* DARK MODE OVERRIDES (Strict contrast for eye strain) */
+        body.dark-mode {
+            --bg-gradient: linear-gradient(135deg, #121212 0%, #1A1A1A 100%);
+            --panel-color: #1E1E1E;
+            --text-color: #E0E0E0;
+            --accent-green: #4E7C59;
+            --accent-red: #7A3B3B;
+            --border-color: #333333;
+            --input-bg: rgba(0, 0, 0, 0.3);
+            --input-field-bg: #2C2C2C;
+            --output-bg: #1A1A1A;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-color);
+            margin: 0; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
+            height: 95vh;
+            transition: background 0.4s, color 0.4s;
+        }
+
+        h1 { margin-top: 0; margin-bottom: 10px; color: var(--text-color); text-align: center; text-shadow: 0px 2px 4px rgba(0,0,0,0.05); }
+
+        .theme-toggle {
+            position: absolute; top: 20px; right: 20px;
+            background: var(--panel-color); color: var(--text-color);
+            border: 2px solid var(--border-color); padding: 8px 12px;
+            border-radius: 20px; cursor: pointer; font-weight: bold;
+            transition: 0.3s; backdrop-filter: blur(4px);
+        }
+        .theme-toggle:hover { filter: brightness(0.95); transform: translateY(-1px); }
+
+        .container {
+            display: flex; gap: 20px;
+            width: 100%; max-width: 1400px; height: 100%;
+        }
+
+        .panel {
+            background: var(--panel-color);
+            backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.04);
+            display: flex; flex-direction: column;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: background 0.3s;
+        }
+
+        .left-panel { flex: 1.2; overflow: hidden; }
+        
+        /* UPDATED: Right panel now allows vertical scrolling */
+        .right-panel { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding-right: 10px;
+        }
+
+        .panel-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; border-bottom: 2px solid var(--border-color); padding-bottom: 5px;
+            flex-shrink: 0;
+        }
+        .panel-header h2 { margin: 0; font-size: 1.2em; }
+
+        .info-text {
+            font-size: 0.85em; color: var(--text-color); opacity: 0.85; 
+            margin-top: -5px; margin-bottom: 15px; line-height: 1.4;
+            background: var(--input-bg); padding: 10px; border-radius: 6px;
+            border-left: 4px solid var(--accent-green);
+            flex-shrink: 0;
+        }
+
+        .scroll-area { overflow-y: auto; flex-grow: 1; padding-right: 5px; }
+        .scroll-area::-webkit-scrollbar, .right-panel::-webkit-scrollbar { width: 8px; }
+        .scroll-area::-webkit-scrollbar-thumb, .right-panel::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+
+        .category-box {
+            border: 2px solid var(--border-color); border-radius: 8px;
+            margin-bottom: 15px; padding: 12px; background: rgba(0,0,0,0.02);
+        }
+        .category-title {
+            font-weight: bold; margin-top: -22px; margin-left: 10px;
+            background: var(--panel-color); padding: 0 8px; display: inline-block;
+            font-size: 0.9em; border-radius: 4px; border: 1px solid var(--border-color);
+        }
+
+        .grid-3col { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+        .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        .input-group {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--input-bg); padding: 6px 10px; border-radius: 6px; gap: 10px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
+        }
+        .input-group label { 
+            font-size: 0.85em; line-height: 1.2; flex-grow: 1; word-wrap: break-word;
+        }
+        .input-group input { 
+            width: 45px; text-align: center; border: 1px solid var(--border-color); 
+            border-radius: 4px; padding: 4px 2px; background: var(--input-field-bg); 
+            color: var(--text-color); font-weight: bold; flex-shrink: 0;
+            transition: 0.2s;
+        }
+        .input-group input:focus { outline: none; border-color: var(--accent-green); }
+
+        .recipe-item {
+            display: flex; align-items: flex-start; padding: 6px; font-size: 0.9em;
+            cursor: pointer; transition: 0.1s; border-radius: 4px; line-height: 1.3;
+        }
+        .recipe-item:hover { background: var(--input-bg); }
+        .recipe-item input { margin-right: 8px; margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+
+        .search-bar { display: flex; gap: 10px; margin-bottom: 10px; flex-shrink: 0; }
+        .search-bar input { 
+            flex-grow: 1; padding: 8px; border: 1px solid var(--border-color); 
+            border-radius: 4px; background: var(--input-field-bg); color: var(--text-color);
+        }
+        .search-bar input:focus { outline: none; border-color: var(--accent-green); }
+        
+        .btn {
+            background-color: var(--accent-green); color: white; border: none;
+            padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer;
+            transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .btn:hover { filter: brightness(1.05); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .btn:active { transform: scale(0.98); }
+        .btn-clear { background-color: var(--accent-red); color: var(--text-color); padding: 4px 10px; font-size: 0.8em; text-transform: none; }
+
+        /* UPDATED: Output box now has a larger fixed height to expand into */
+        .output-box {
+            background-color: var(--output-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 6px;
+            padding: 12px; 
+            font-family: 'Courier New', Courier, monospace; 
+            white-space: pre-wrap;
+            min-height: 400px; 
+            height: 500px; /* Fixed height so it stretches the right-panel scroll */
+            overflow-y: auto; 
+            margin-top: 10px; 
+            line-height: 1.5; 
+            font-size: 0.95em;
+            color: var(--text-color); 
+            transition: background-color 0.3s;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="theme-toggle" onclick="document.body.classList.toggle('dark-mode')">🌓 Toggle Theme</button>
+
+    <h1>✿ Heartopia Kitchen Manager ✿</h1>
+
+    <div class="container">
+        <div class="panel left-panel">
+            <div class="panel-header">
+                <h2>Current Stock</h2>
+                <button class="btn btn-clear" onclick="clearInventory()">Clear All</button>
+            </div>
+            <div id="inventory-container" class="scroll-area"></div>
+        </div>
+
+        <div class="panel right-panel">
+            
+            <div class="panel-header"><h2>Star Probabilities (%)</h2></div>
+            
+            <div class="info-text">
+                <strong>How to find your exact rates:</strong> Cook exactly 100 of the cheapest dish you can (like House Salad). Count how many 1★, 2★, 3★, 4★, and 5★ dishes you receive from that batch. Because you cooked exactly 100, those raw numbers are your exact percentages. Enter them below.
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px; text-align: center; background: var(--input-bg); padding: 10px; border-radius: 8px; flex-shrink: 0;">
+                <div><small style="font-weight: bold;">1★ (1x)</small><br><input type="number" id="p1" value="60" style="width:45px; padding: 4px; margin-top: 5px; background: var(--input-field-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; text-align: center;"></div>
+                <div><small style="font-weight: bold;">2★ (1.5x)</small><br><input type="number" id="p2" value="20" style="width:45px; padding: 4px; margin-top: 5px; background: var(--input-field-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; text-align: center;"></div>
+                <div><small style="font-weight: bold;">3★ (2x)</small><br><input type="number" id="p3" value="10" style="width:45px; padding: 4px; margin-top: 5px; background: var(--input-field-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; text-align: center;"></div>
+                <div><small style="font-weight: bold;">4★ (4x)</small><br><input type="number" id="p4" value="5" style="width:45px; padding: 4px; margin-top: 5px; background: var(--input-field-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; text-align: center;"></div>
+                <div><small style="font-weight: bold;">5★ (8x)</small><br><input type="number" id="p5" value="5" style="width:45px; padding: 4px; margin-top: 5px; background: var(--input-field-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; text-align: center;"></div>
+            </div>
+
+            <div class="panel-header" style="margin-top: 5px;"><h2>Allowed to Cook</h2></div>
+            <div class="search-bar">
+                <input type="text" id="recipe-search" placeholder="Search for recipes to enable/disable..." oninput="renderRecipes()">
+                <button class="btn" style="background: var(--border-color); color: var(--text-color);" onclick="toggleVisibleRecipes()">Toggle Visible</button>
+            </div>
+            <div id="recipe-container" class="scroll-area grid-2col" style="flex-shrink: 0; max-height: 240px; margin-bottom: 15px; background: var(--input-bg); border-radius: 8px; padding: 10px; border: 1px solid var(--border-color);"></div>
+
+            <button class="btn" style="width: 100%; font-size: 1.1em; padding: 14px; letter-spacing: 1px; flex-shrink: 0;" onclick="triggerOptimization()">✦ OPTIMIZE EXPECTED PROFIT ✦</button>
+            
+            <div class="output-box" id="output">System Ready. Enter your inventory and click Optimize...</div>
+        </div>
+    </div>
+
+    <script>
+        // ... (The rest of the script remains unchanged)
+        const INVENTORY_CATEGORIES = {
+            "Store Bought": ["Meat", "Egg", "Milk", "Cheese", "Butter", "Coffee Beans", "Tea Leaves", "Matcha Powder", "Rice Flour", "Red Bean", "Cooking Oil", "Pasturized Egg", "Sugar", "Blue Sugar", "Indigo Sugar", "Violet Sugar", "Red Sugar", "Orange Sugar", "Yellow Sugar", "Green Sugar"],
+            "Crops & Farmed": ["Tomato", "Potato", "Wheat", "Lettuce", "Pineapple", "Carrot", "Strawberry", "Corn", "Grapes", "Eggplant", "Tea Tree", "Cocoa", "Avocado", "Radish"],
+            "Mushrooms": ["Button Mushroom", "Oyster Mushroom", "Shiitake Mushroom", "Penny Bun Mushroom", "Penny Bun", "Black Truffle", "Matsutake"],
+            "Fruits Foraged": ["Blueberry", "Raspberry", "Mandarin", "Apple"],
+            "Seafood": ["Fish", "King Crab"]
+        };
+
+        const INGREDIENT_COSTS = {
+            "Avocado": 180, "Blue Sugar": 150, "Butter": 150, "Carrot": 50, "Cheese": 100, "Cocoa": 110, "Coffee Beans": 50, "Cooking Oil": 100, "Corn": 170, "Egg": 100, "Eggplant": 135, "Grapes": 160, "Green Sugar": 200, "Indigo Sugar": 150, "Lettuce": 145, "Matcha Powder": 250, "Meat": 200, "Milk": 50, "Orange Sugar": 200, "Pasturized Egg": 100, "Pineapple": 15, "Potato": 30, "Radish": 10, "Red Bean": 50, "Red Sugar": 150, "Rice Flour": 50, "Strawberry": 125, "Sugar": 50, "Tea Leaves": 250, "Tea Tree": 25, "Tomato": 10, "Violet Sugar": 150, "Wheat": 95, "Yellow Sugar": 150, "Black Truffle": 0, "Apple": 0, "Blueberry": 0, "Raspberry": 0, "Mandarin": 0, "Fish": 0, "King Crab": 0, "Button Mushroom": 0, "Oyster Mushroom": 0, "Penny Bun Mushroom": 0, "Shiitake Mushroom": 0, "Penny Bun": 0
+        };
+
+        const RECIPES = {
+            "Afternoon Tea": { base_price: 710, ingredients: [ { items: ["Tiramisu"], qty: 1 }, { items: ["Tomato", "Pineapple", "Strawberry", "Carrot", "Corn", "Grapes", "Blueberry", "Raspberry", "Apple", "Mandarin"], qty: 1 } ] },
+            "Apple Jam": { base_price: 270, ingredients: [ { items: ["Apple"], qty: 4 } ] },
+            "Apple Pie": { base_price: 730, ingredients: [ { items: ["Apple"], qty: 1 }, { items: ["Wheat"], qty: 1 }, { items: ["Egg"], qty: 1 }, { items: ["Butter"], qty: 1 } ] },
+            "Appple Frosted Pancake": { base_price: 360, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Sugar"], qty: 1 }, { items: ["Apple"], qty: 1 } ] },
+            "Aurora Banquet": { base_price: 1630, ingredients: [ { items: ["Steak with White Mashed Radish"], qty: 1 }, { items: ["Creamy White Radish Soup"], qty: 1 }, { items: ["Iced Coffee", "Iced Latte"], qty: 1 }, { items: ["Blueberry Frosted Pancake", "Rasberry Frosted Pancake", "Mandarin Frosted Pancake", "Appple Frosted Pancake"], qty: 1 } ] },
+            "Black Truffle Cream Pasta": { base_price: 900, ingredients: [ { items: ["Black Truffle"], qty: 1 }, { items: ["Wheat"], qty: 2 }, { items: ["Milk"], qty: 1 } ] },
+            "Black Truffle Pie": { base_price: 830, ingredients: [ { items: ["Black Truffle"], qty: 2 }, { items: ["Wheat"], qty: 1 }, { items: ["Egg"], qty: 1 } ] },
+            "Blue Roll Cake": { base_price: 570, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Blue Sugar"], qty: 2 } ] },
+            "Blueberry Frosted Pancake": { base_price: 330, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Sugar"], qty: 1 }, { items: ["Blueberry"], qty: 1 } ] },
+            "Blueberry Jam": { base_price: 170, ingredients: [ { items: ["Blueberry"], qty: 4 } ] },
+            "Button Mushroom Pie": { base_price: 500, ingredients: [ { items: ["Button Mushroom"], qty: 2 }, { items: ["Wheat"], qty: 1 }, { items: ["Egg"], qty: 1 } ] },
+            "Carrot Cake": { base_price: 840, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Wheat"], qty: 1 }, { items: ["Carrot"], qty: 2 } ] },
+            "Cheesecake": { base_price: 480, ingredients: [ { items: ["Cheese"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Wheat"], qty: 1 } ] },
+            "Coffee": { base_price: 290, ingredients: [ { items: ["Coffee Beans"], qty: 4 } ] },
+            "Corn Soup": { base_price: 1340, ingredients: [ { items: ["Milk"], qty: 1 }, { items: ["Butter"], qty: 1 }, { items: ["Corn"], qty: 2 } ] },
+            "Creamy White Radish Soup": { base_price: 340, ingredients: [ { items: ["Milk"], qty: 1 }, { items: ["Butter"], qty: 1 }, { items: ["Radish"], qty: 2 } ] },
+            "Fish And Chips": { base_price: 310, ingredients: [ { items: ["Fish"], qty: 2 }, { items: ["Potato"], qty: 2 } ] },
+            "Grape Jam": { base_price: 2020, ingredients: [ { items: ["Grapes"], qty: 4 } ] },
+            "Green Roll Cake": { base_price: 670, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Green Sugar"], qty: 2 } ] },
+            "Grilled Button Mushroom": { base_price: 180, ingredients: [ { items: ["Button Mushroom"], qty: 4 } ] },
+            "Grilled Mushroom": { base_price: 180, ingredients: [ { items: ["Button Mushroom", "Oyster Mushroom", "Penny Bun Mushroom", "Shiitake Mushroom", "Black Truffle"], qty: 4 } ] },
+            "Grilled Oyster Mushroom": { base_price: 180, ingredients: [ { items: ["Oyster Mushroom"], qty: 4 } ] },
+            "Grilled Penny Bun": { base_price: 180, ingredients: [ { items: ["Penny Bun Mushroom"], qty: 4 } ] },
+            "Grilled Shiitake": { base_price: 180, ingredients: [ { items: ["Shiitake Mushroom"], qty: 4 } ] },
+            "House Salad": { base_price: 90, ingredients: [ { items: ["Radish", "Wheat", "Tomato", "Potato", "Carrot", "Eggplant", "Lettuce", "Corn"], qty: 2 } ] },
+            "Iced Coffee": { base_price: 280, ingredients: [ { items: ["Sugar"], qty: 1 }, { items: ["Coffee Beans"], qty: 3 } ] },
+            "Iced Latte": { base_price: 280, ingredients: [ { items: ["Sugar"], qty: 1 }, { items: ["Coffee Beans"], qty: 1 }, { items: ["Milk"], qty: 2 } ] },
+            "Indigo Roll Cake": { base_price: 570, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Indigo Sugar"], qty: 2 } ] },
+            "Latte": { base_price: 300, ingredients: [ { items: ["Coffee Beans"], qty: 2 }, { items: ["Milk"], qty: 2 } ] },
+            "Mandarin Frosted Pancake": { base_price: 360, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Sugar"], qty: 1 }, { items: ["Mandarin"], qty: 1 } ] },
+            "Mandarin Jam": { base_price: 270, ingredients: [ { items: ["Mandarin"], qty: 4 } ] },
+            "Meat Sauce Pasta": { base_price: 670, ingredients: [ { items: ["Meat"], qty: 1 }, { items: ["Wheat"], qty: 1 }, { items: ["Tomato"], qty: 1 }, { items: ["Cheese"], qty: 1 } ] },
+            "Mixed Jam": { base_price: 160, ingredients: [ { items: ["Tomato", "Pineapple", "Strawberry", "Carrot", "Corn", "Grapes", "Blueberry", "Raspberry", "Apple", "Mandarin"], qty: 4 } ] },
+            "Mushroom Pie": { base_price: 500, ingredients: [ { items: ["Button Mushroom", "Oyster Mushroom", "Penny Bun Mushroom", "Shiitake Mushroom", "Black Truffle"], qty: 2 }, { items: ["Wheat"], qty: 1 }, { items: ["Egg"], qty: 1 } ] },
+            "Orange Roll Cake": { base_price: 670, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Orange Sugar"], qty: 2 } ] },
+            "Original Frosted Pancake": { base_price: 330, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Sugar"], qty: 1 }, { items: ["Tomato", "Pineapple", "Strawberry", "Carrot", "Corn", "Grapes", "Blueberry", "Raspberry", "Apple", "Mandarin"], qty: 1 } ] },
+            "Original Roll Cake": { base_price: 550, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Blue Sugar", "Indigo Sugar", "Violet Sugar", "Red Sugar", "Orange Sugar", "Yellow Sugar", "Green Sugar"], qty: 2 } ] },
+            "Oyster Mushroom Pie": { base_price: 500, ingredients: [ { items: ["Oyster Mushroom"], qty: 2 }, { items: ["Wheat"], qty: 1 }, { items: ["Egg"], qty: 1 } ] },
+            "Penny Bun Pie": { base_price: 500, ingredients: [ { items: ["Penny Bun"], qty: 2 }, { items: ["Wheat"], qty: 1 }, { items: ["Egg"], qty: 1 } ] },
+            "Picnic Set": { base_price: 2260, ingredients: [ { items: ["Coffee", "Latte"], qty: 1 }, { items: ["Seafood Pizza"], qty: 1 }, { items: ["Apple Pie"], qty: 1 }, { items: ["Fish And Chips"], qty: 1 } ] },
+            "Pineapple Jam": { base_price: 280, ingredients: [ { items: ["Pineapple"], qty: 4 } ] },
+            "Rasberry Frosted Pancake": { base_price: 350, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Sugar"], qty: 1 }, { items: ["Raspberry"], qty: 1 } ] },
+            "Rasberry Jam": { base_price: 250, ingredients: [ { items: ["Raspberry"], qty: 4 } ] },
+            "Red Roll Cake": { base_price: 670, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Red Sugar"], qty: 2 } ] },
+            "Rustic Ratatouille": { base_price: 640, ingredients: [ { items: ["Tomato"], qty: 1 }, { items: ["Potato"], qty: 1 }, { items: ["Lettuce"], qty: 1 } ] },
+            "Seafood Pizza": { base_price: 780, ingredients: [ { items: ["Cheese"], qty: 1 }, { items: ["Tomato Sauce"], qty: 1 }, { items: ["Wheat"], qty: 1 }, { items: ["Fish"], qty: 1 } ] },
+            "Seafood Risotto": { base_price: 490, ingredients: [ { items: ["Fish"], qty: 2 }, { items: ["Wheat"], qty: 1 }, { items: ["Tomato"], qty: 1 } ] },
+            "Shiitake Pie": { base_price: 500, ingredients: [ { items: ["Shiitake Mushroom"], qty: 2 }, { items: ["Wheat"], qty: 1 }, { items: ["Egg"], qty: 1 } ] },
+            "Smoked Fish Bagel": { base_price: 520, ingredients: [ { items: ["Fish"], qty: 1 }, { items: ["Cheese"], qty: 1 }, { items: ["Radish", "Wheat", "Tomato", "Potato", "Carrot", "Eggplant", "Lettuce", "Corn"], qty: 1 }, { items: ["Wheat"], qty: 1 } ] },
+            "Steak with White Mashed Radish": { base_price: 630, ingredients: [ { items: ["Meat"], qty: 2 }, { items: ["Butter"], qty: 1 }, { items: ["Radish"], qty: 1 } ] },
+            "Strawberry Jam": { base_price: 1580, ingredients: [ { items: ["Strawberry"], qty: 4 } ] },
+            "Tiramisu": { base_price: 530, ingredients: [ { items: ["Coffee Beans"], qty: 1 }, { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Cheese"], qty: 1 } ] },
+            "Tomato Sauce": { base_price: 180, ingredients: [ { items: ["Tomato"], qty: 4 } ] },
+            "Violet Roll Cake": { base_price: 570, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Violet Sugar"], qty: 2 } ] },
+            "Yellow Roll Cake": { base_price: 670, ingredients: [ { items: ["Egg"], qty: 1 }, { items: ["Milk"], qty: 1 }, { items: ["Yellow Sugar"], qty: 2 } ] }
+        };
+
+        let allRequiredItems = new Set(Object.keys(RECIPES));
+        for (let r in RECIPES) RECIPES[r].ingredients.forEach(g => g.items.forEach(i => allRequiredItems.add(i)));
+        
+        let categorizedItems = new Set();
+        let dynamicCategories = {};
+
+        for (let [catName, items] of Object.entries(INVENTORY_CATEGORIES)) {
+            dynamicCategories[catName] = [];
+            items.forEach(item => {
+                if (allRequiredItems.has(item) || INGREDIENT_COSTS[item] !== undefined) {
+                    dynamicCategories[catName].push(item);
+                    categorizedItems.add(item);
+                }
+            });
+        }
+
+        let otherItems = Array.from(allRequiredItems).filter(i => !categorizedItems.has(i));
+        if (otherItems.length > 0) dynamicCategories["Crafted / Intermediate"] = otherItems.sort();
+
+        const invContainer = document.getElementById('inventory-container');
+        for (let [catName, items] of Object.entries(dynamicCategories)) {
+            if (items.length === 0) continue;
+            
+            let catHTML = `<div class="category-box">
+                <div class="category-title">${catName}</div>
+                <div class="grid-3col">`;
+            
+            items.sort().forEach(item => {
+                let costHTML = (INGREDIENT_COSTS[item] !== undefined && INGREDIENT_COSTS[item] > 0) 
+                    ? `<br><small style="color: #888; font-weight: normal;">($${INGREDIENT_COSTS[item]})</small>` 
+                    : ``;
+                
+                catHTML += `
+                    <div class="input-group">
+                        <label title="${item}">${item}${costHTML}</label>
+                        <input type="number" id="inv_${item.replace(/[^a-zA-Z0-9]/g, "_")}" value="0" min="0">
+                    </div>
+                `;
+            });
+            catHTML += `</div></div>`;
+            invContainer.innerHTML += catHTML;
+        }
+
+        function clearInventory() {
+            document.querySelectorAll('#inventory-container input').forEach(inp => inp.value = "0");
+        }
+
+        let activeRecipes = {};
+        Object.keys(RECIPES).forEach(r => activeRecipes[r] = true);
+
+        function renderRecipes() {
+            const query = document.getElementById('recipe-search').value.toLowerCase();
+            const container = document.getElementById('recipe-container');
+            container.innerHTML = "";
+            
+            Object.keys(RECIPES).sort().forEach(rName => {
+                if (rName.toLowerCase().includes(query)) {
+                    let checked = activeRecipes[rName] ? "checked" : "";
+                    container.innerHTML += `
+                        <label class="recipe-item" title="Base Profit: ${RECIPES[rName].base_price}">
+                            <input type="checkbox" onchange="activeRecipes['${rName}'] = this.checked" ${checked}>
+                            ${rName}
+                        </label>
+                    `;
+                }
+            });
+        }
+
+        function toggleVisibleRecipes() {
+            const query = document.getElementById('recipe-search').value.toLowerCase();
+            let visible = Object.keys(RECIPES).filter(r => r.toLowerCase().includes(query));
+            if(visible.length === 0) return;
+            
+            let targetState = visible.some(r => !activeRecipes[r]);
+            visible.forEach(r => activeRecipes[r] = targetState);
+            renderRecipes();
+        }
+
+        renderRecipes();
+        function out(text) { document.getElementById('output').innerHTML += text + "\n"; }
+
+        function triggerOptimization() {
+            if (typeof solver === 'undefined') {
+                document.getElementById('output').innerHTML = "SYSTEM ERROR:\nThe math engine failed to load. \n\nPlease check your internet connection or disable ad-blockers.";
+                return;
+            }
+            document.getElementById('output').innerHTML = "Initializing Engine...\nSolving model... (Please wait)\n";
+            setTimeout(optimize, 50); 
+        }
+
+        function optimize() {
+            try {
+                let p1 = parseFloat(document.getElementById('p1').value) || 0;
+                let p2 = parseFloat(document.getElementById('p2').value) || 0;
+                let p3 = parseFloat(document.getElementById('p3').value) || 0;
+                let p4 = parseFloat(document.getElementById('p4').value) || 0;
+                let p5 = parseFloat(document.getElementById('p5').value) || 0;
+                
+                let expected_mult = (p1*1 + p2*1.5 + p3*2 + p4*4 + p5*8) / 100.0;
+
+                let model = { optimize: "expected_profit", opType: "max", constraints: {}, variables: {}, ints: {} };
+                let varMap = {}; 
+                const sanitize = (str) => str.replace(/[^a-zA-Z0-9]/g, '_');
+
+                let allPossibleItems = new Set([...Object.keys(RECIPES), ...allRequiredItems]);
+                allPossibleItems.forEach(item => {
+                    let safe_item = sanitize(item);
+                    let el = document.getElementById(`inv_${safe_item}`);
+                    let stock = el ? parseInt(el.value) || 0 : 0;
+                    model.constraints[`Stock_${safe_item}`] = { max: stock };
+                });
+
+                for (let [rName, rData] of Object.entries(RECIPES)) {
+                    let safe_rName = sanitize(rName);
+                    let cookVar = `Cook_${safe_rName}`;
+                    let sellVar = `Sell_${safe_rName}`;
+                    
+                    if (!activeRecipes[rName]) {
+                        model.constraints[`Disable_${safe_rName}`] = { max: 0 };
+                        model.variables[cookVar] = { [`Disable_${safe_rName}`]: 1 };
+                        model.ints[cookVar] = 1;
+                        continue; 
+                    }
+
+                    model.variables[sellVar] = { expected_profit: rData.base_price * expected_mult, [`Stock_${safe_rName}`]: 1 };
+                    model.ints[sellVar] = 1;
+                    varMap[sellVar] = { type: 'Sell', name: rName, price: rData.base_price };
+
+                    model.variables[cookVar] = { [`Stock_${safe_rName}`]: -1 };
+                    model.ints[cookVar] = 1;
+                    varMap[cookVar] = { type: 'Cook', name: rName };
+
+                    rData.ingredients.forEach((group, gIdx) => {
+                        let reqConstraint = `Req_${safe_rName}_${gIdx}`;
+                        
+                        model.constraints[reqConstraint] = { equal: 0 }; 
+                        model.variables[cookVar][reqConstraint] = -group.qty; 
+
+                        group.items.forEach(item => {
+                            let safe_item = sanitize(item);
+                            let allocVar = `Alloc_${safe_item}_to_${safe_rName}_${gIdx}`;
+                            let cost = INGREDIENT_COSTS[item] || 0;
+                            
+                            model.variables[allocVar] = {
+                                [reqConstraint]: 1, 
+                                [`Stock_${safe_item}`]: 1, 
+                                expected_profit: -cost 
+                            };
+                            model.ints[allocVar] = 1;
+                            varMap[allocVar] = { type: 'Alloc', item: item, target: rName, cost: cost };
+                        });
+                    });
+                }
+
+                let results = solver.Solve(model);
+                document.getElementById('output').innerHTML = ""; 
+                
+                if(results.result === Infinity) {
+                    out("ERROR: Unbounded math loop detected. Ensure your recipes don't endlessly generate themselves.");
+                    return;
+                }
+
+                if(!results.feasible) {
+                    out("ERROR: No optimal solution found. Enter items into your stock and ensure recipes are checked."); return;
+                }
+
+                if (Math.round(p1+p2+p3+p4+p5) !== 100) {
+                    out("WARNING: Your probabilities do not equal 100%.\n");
+                }
+
+                out(`✿ KITCHEN ORDERS (Avg Multiplier: ${expected_mult.toFixed(2)}x) ✿\n\n`);
+                
+                let totalRevenue = 0;
+                let totalCost = 0;
+
+                for (let [key, val] of Object.entries(results)) {
+                    let qty = Math.round(val); 
+                    if(qty > 0 && varMap[key]) {
+                        let info = varMap[key];
+                        if (info.type === 'Sell') {
+                            let rev = qty * info.price * expected_mult;
+                            totalRevenue += rev;
+                            out(`➤ SELL ${qty}x ${info.name} (Revenue: ${rev.toFixed(1)})`);
+                        }
+                    }
+                }
+                
+                let productionTree = {};
+                for (let [key, val] of Object.entries(results)) {
+                    let qty = Math.round(val); 
+                    if(qty > 0 && varMap[key]) {
+                        let info = varMap[key];
+                        if (info.type === 'Cook') {
+                            if (!productionTree[info.name]) productionTree[info.name] = { cookQty: 0, allocs: [] };
+                            productionTree[info.name].cookQty = qty;
+                        }
+                        if (info.type === 'Alloc') {
+                            if (!productionTree[info.target]) productionTree[info.target] = { cookQty: 0, allocs: [] };
+                            let lineCost = info.cost * qty;
+                            productionTree[info.target].allocs.push({ item: info.item, qty: qty, cost: lineCost });
+                        }
+                    }
+                }
+
+                out("\n✿ FACTORY PRODUCTION FLOW ✿\n");
+                for (let [dish, data] of Object.entries(productionTree)) {
+                    if (data.cookQty > 0) {
+                        out(`➤ COOK ${data.cookQty}x ${dish}`);
+                        data.allocs.forEach(alloc => {
+                            if (alloc.cost > 0) {
+                                totalCost += alloc.cost;
+                                out(`   - Used ${alloc.qty}x ${alloc.item} (Cost: -${alloc.cost})`);
+                            } else {
+                                out(`   - Used ${alloc.qty}x ${alloc.item}`);
+                            }
+                        });
+                    }
+                }
+
+                out("\n=============================================");
+                out(`TOTAL EXPECTED REVENUE :  ${totalRevenue.toFixed(1)}`);
+                out(`TOTAL INGREDIENT COST  : -${totalCost.toFixed(1)}`);
+                out(`NET EXPECTED PROFIT    :  ${(totalRevenue - totalCost).toFixed(1)}`);
+                out("=============================================");
+
+            } catch (error) {
+                document.getElementById('output').innerHTML = "SYSTEM ERROR:\n" + error.message + "\n\nCheck your recipe spelling for typos.";
+            }
+        }
+    </script>
+</body>
+</html>
